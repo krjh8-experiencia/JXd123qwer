@@ -1,129 +1,177 @@
-// Usuarios hardcodeados (inseguro, pero es estático)
+// Usuarios hardcodeados
 const users = {
-    'krjh8': 'password123',  // Solo este puede subir
-    'testuser': 'pass456'    // Otro usuario de ejemplo
+    'krjh8': 'password123',
+    'testuser': 'pass456'
 };
 
-// Función para mostrar mensaje de error
-function showError(message) {
-    alert(message);
+// Mostrar mensajes (usamos alert por simplicidad)
+function mostrarMensaje(mensaje, esError = false) {
+    alert(esError ? '❌ ' + mensaje : '✅ ' + mensaje);
 }
 
-// Manejar login
+// Login
 document.getElementById('loginForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    const username = document.getElementById('username').value;
+    const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     
     if (users[username] && users[username] === password) {
-        localStorage.setItem('loggedUser', username);  // Guardar usuario en localStorage
-        showMainContent(username);
+        localStorage.setItem('loggedUser', username);
+        mostrarMensaje(`Bienvenido ${username}`);
+        mostrarInterfazPrincipal(username);
     } else {
-        showError('Credenciales inválidas');
+        mostrarMensaje('Credenciales inválidas', true);
     }
 });
 
-// Mostrar contenido principal
-function showMainContent(username) {
+// Mostrar interfaz después del login
+function mostrarInterfazPrincipal(username) {
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('main-content').style.display = 'block';
     document.getElementById('user-display').textContent = username;
     
-    if (username === 'krjh8') {
-        document.getElementById('upload-section').style.display = 'block';
-    }
+    // Mostrar sección de subida solo a krjh8
+    document.getElementById('upload-section').style.display = 
+        username === 'krjh8' ? 'block' : 'none';
     
-    loadFileList();
+    cargarListaArchivos();
 }
 
-// Cargar lista de archivos desde localStorage
-function loadFileList(searchQuery = '') {
+// Cargar lista de archivos
+function cargarListaArchivos(busqueda = '') {
     const fileList = document.getElementById('fileList');
     fileList.innerHTML = '';
     
+    let encontrados = 0;
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key.startsWith('file_') && key.endsWith('.jar')) {
-            const filename = key.replace('file_', '');
-            if (searchQuery && !filename.toLowerCase().includes(searchQuery.toLowerCase())) continue;
+            const nombreArchivo = key.substring(5); // quitar "file_"
+            if (busqueda && !nombreArchivo.toLowerCase().includes(busqueda.toLowerCase())) 
+                continue;
             
             const li = document.createElement('li');
-            li.textContent = filename;
-            const downloadBtn = document.createElement('button');
-            downloadBtn.textContent = 'Descargar';
-            downloadBtn.onclick = () => downloadFile(filename);
-            li.appendChild(downloadBtn);
+            li.innerHTML = `${nombreArchivo} <button class="download-btn">Descargar</button>`;
+            li.querySelector('.download-btn').onclick = () => descargarArchivo(nombreArchivo);
             fileList.appendChild(li);
+            encontrados++;
         }
+    }
+    
+    if (encontrados === 0) {
+        fileList.innerHTML = '<li>No hay archivos aún.</li>';
     }
 }
 
-// Manejar upload
+// SUBIDA DE ARCHIVO - Versión corregida
 document.getElementById('uploadForm').addEventListener('submit', function(e) {
     e.preventDefault();
+    
     const fileInput = document.getElementById('fileInput');
     const file = fileInput.files[0];
     
-    if (!file || !file.name.endsWith('.jar')) {
-        showError('Archivo inválido. Solo .jar');
+    if (!file) {
+        mostrarMensaje('Selecciona un archivo primero', true);
+        return;
+    }
+    
+    if (!file.name.toLowerCase().endsWith('.jar')) {
+        mostrarMensaje('Solo se permiten archivos .jar', true);
+        return;
+    }
+    
+    if (file.size > 4 * 1024 * 1024) { // 4 MB límite recomendado
+        mostrarMensaje('El archivo es demasiado grande (máx 4 MB recomendado)', true);
         return;
     }
     
     const reader = new FileReader();
+    
     reader.onload = function(event) {
-        const base64 = event.target.result.split(',')[1];  // Obtener base64 puro
-        localStorage.setItem(`file_${file.name}`, base64);
-        showError('Archivo subido exitosamente (en localStorage)');
-        loadFileList();
+        try {
+            const base64 = event.target.result.split(',')[1];
+            const clave = 'file_' + file.name;
+            
+            // Guardar en localStorage
+            localStorage.setItem(clave, base64);
+            
+            mostrarMensaje(`¡"${file.name}" subido correctamente!`);
+            console.log('Archivo guardado con clave:', clave);
+            
+            // Limpiar input y recargar lista
+            fileInput.value = '';
+            cargarListaArchivos();
+            
+        } catch (error) {
+            console.error(error);
+            mostrarMensaje('Error al guardar el archivo', true);
+        }
     };
-    reader.readAsDataURL(file);  // Leer como base64
+    
+    reader.onerror = function() {
+        mostrarMensaje('Error al leer el archivo', true);
+    };
+    
+    reader.readAsDataURL(file);
 });
 
-// Manejar búsqueda
+// Búsqueda
 document.getElementById('searchForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    const searchQuery = document.getElementById('searchInput').value;
-    loadFileList(searchQuery);
+    const busqueda = document.getElementById('searchInput').value.trim();
+    cargarListaArchivos(busqueda);
 });
 
-// Descargar archivo modificado
-async function downloadFile(filename) {
-    const base64 = localStorage.getItem(`file_${filename}`);
-    if (!base64) return showError('Archivo no encontrado');
+// Descarga con modificación
+async function descargarArchivo(nombreArchivo) {
+    const clave = 'file_' + nombreArchivo;
+    const base64 = localStorage.getItem(clave);
     
-    // Convertir base64 a ArrayBuffer
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    
-    // Cargar ZIP con JSZip
-    const zip = new JSZip();
-    await zip.loadAsync(bytes.buffer);
-    
-    // Modificar plugin.yml si existe
-    if (zip.file('plugin.yml')) {
-        let content = await zip.file('plugin.yml').async('text');
-        const username = localStorage.getItem('loggedUser');
-        content += `\n## Plugin descargado por -${username}-\n`;
-        zip.file('plugin.yml', content);
-    } else {
-        showError('plugin.yml no encontrado en el .jar');
+    if (!base64) {
+        mostrarMensaje('Archivo no encontrado', true);
         return;
     }
     
-    // Generar nuevo ZIP
-    const modifiedZip = await zip.generateAsync({ type: 'blob' });
-    
-    // Descargar
-    const url = URL.createObjectURL(modifiedZip);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+        // Convertir base64 a bytes
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        // Cargar con JSZip
+        const zip = new JSZip();
+        await zip.loadAsync(bytes.buffer);
+        
+        const pluginFile = zip.file('plugin.yml');
+        if (!pluginFile) {
+            mostrarMensaje('Este .jar no contiene plugin.yml', true);
+            return;
+        }
+        
+        let contenido = await pluginFile.async('text');
+        const usuario = localStorage.getItem('loggedUser') || 'desconocido';
+        contenido += `\n## Plugin descargado por -${usuario}-\n`;
+        
+        zip.file('plugin.yml', contenido);
+        
+        const blobModificado = await zip.generateAsync({ type: 'blob' });
+        
+        // Descargar
+        const url = URL.createObjectURL(blobModificado);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nombreArchivo;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        mostrarMensaje(`"${nombreArchivo}" descargado y modificado`);
+        
+    } catch (error) {
+        console.error(error);
+        mostrarMensaje('Error al procesar el archivo', true);
+    }
 }
 
 // Cerrar sesión
@@ -132,10 +180,10 @@ document.getElementById('logoutBtn').addEventListener('click', function() {
     location.reload();
 });
 
-// Chequear si ya está logueado al cargar
+// Al cargar la página
 window.onload = function() {
-    const loggedUser = localStorage.getItem('loggedUser');
-    if (loggedUser) {
-        showMainContent(loggedUser);
+    const usuarioLogueado = localStorage.getItem('loggedUser');
+    if (usuarioLogueado && users[usuarioLogueado]) {
+        mostrarInterfazPrincipal(usuarioLogueado);
     }
 };
