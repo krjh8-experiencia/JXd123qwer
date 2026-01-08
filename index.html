@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicación de Plugins Estática</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script> <!-- JSZip vía CDN -->
+    <script src="script.js" defer></script> <!-- Carga script.js después -->
+</head>
+<body>
+    <div id="login-form">
+        <h1>Iniciar Sesión</h1>
+        <form id="loginForm">
+            <label for="username">Usuario:</label>
+            <input type="text" id="username" required><br>
+            <label for="password">Contraseña:</label>
+            <input type="password" id="password" required><br>
+            <button type="submit">Iniciar Sesión</button>
+        </form>
+    </div>
+
+    <div id="main-content" style="display: none;">
+        <h1>Bienvenido, <span id="user-display"></span></h1>
+        
+        <div id="upload-section" style="display: none;">
+            <h2>Subir Plugin</h2>
+            <form id="uploadForm">
+                <input type="file" id="fileInput" accept=".jar" required><br>
+                <button type="submit">Subir</button>
+            </form>
+        </div>
+        
+        <h2>Buscar Archivos</h2>
+        <form id="searchForm">
+            <input type="text" id="searchInput" placeholder="Buscar archivos">
+            <button type="submit">Buscar</button>
+        </form>
+        
+        <h2>Todos los Archivos</h2>
+        <ul id="fileList"></ul>
+        
+        <button id="logoutBtn">Cerrar Sesión</button>
+    </div>
+</body>
+</html>
