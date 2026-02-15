@@ -1,0 +1,6 @@
+export default function handler(req, res) {
+  res.status(200).json({
+    funcionando: true,
+    mensaje: "API Vercel activa"
+  });
+}
